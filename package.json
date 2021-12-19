@@ -1,5 +1,5 @@
 {
-    "name": "focus-cli",
+    "name": "sls-focus-cli",
     "version": "0.0.0",
     "author": "Gary Jennings @dodgeblaster",
     "bin": {
@@ -46,7 +46,7 @@
         "aws-sdk": "^2.1037.0",
         "chalk": "^4.1.2",
         "fs-extra": "^10.0.0",
-        "rise-foundation": "^0.0.9",
+        "rise-foundation": "^0.0.14",
         "riseapp-utils": "^0.0.2"
     }
 }

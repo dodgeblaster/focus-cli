@@ -15,11 +15,11 @@ focus-cli
 # Usage
 <!-- usage -->
 ```sh-session
-$ npm install -g focus-cli
+$ npm install -g sls-focus-cli
 $ focus COMMAND
 running command...
 $ focus (-v|--version|version)
-focus-cli/0.0.0 darwin-x64 node-v14.15.1
+sls-focus-cli/0.0.0 darwin-x64 node-v14.15.1
 $ focus --help [COMMAND]
 USAGE
   $ focus COMMAND

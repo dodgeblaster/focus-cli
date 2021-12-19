@@ -5,6 +5,7 @@ const AWS = require('aws-sdk')
 const { readFile, copySync, copyFileSync, writeFileSync } = require('fs-extra')
 const getFunctionConfigValues = require('./getFunctionConfigValues')
 const io = rise.default.io
+const { makeEventRule } = require('./_makeEventRule')
 
 const HIDDEN_FOLDER = '.focus'
 
@@ -250,6 +251,7 @@ const deployCfTemplate = async ({
                 Resource: '*'
             })
         }
+        // @gary
 
         const res = foundation.default.lambda.cf.makeLambda({
             appName: appName,
@@ -261,7 +263,13 @@ const deployCfTemplate = async ({
             handler: x.path.startsWith('testLambdas')
                 ? '_index.handler'
                 : 'index.handler',
-            permissions: permissions
+            permissions: permissions,
+            timeout: x.path.startsWith('testLambdas')
+                ? 900
+                : config[x.name]
+                ? config[x.name].timeout
+                : 6,
+            layers: config[x.name] ? config[x.name].layers : []
         })
 
         //console.log('LAMBDA: ', JSON.stringify(res, null, 2))
@@ -278,6 +286,20 @@ const deployCfTemplate = async ({
                         'Fn::GetAtt': [`Lambda${x.name}${stage}`, 'Arn']
                     }
                 }
+            }
+        }
+
+        if (config[x.name].trigger) {
+            const cf = makeEventRule({
+                appName: appName,
+                eventBus: 'default',
+                eventSource: config[x.name].trigger.split('_')[0],
+                eventName: config[x.name].trigger.split('_')[1],
+                lambdaName: `Lambda${x.name}${stage}`
+            })
+            template.Resources = {
+                ...template.Resources,
+                ...cf.Resources
             }
         }
     })
@@ -326,6 +348,7 @@ const updateLambdaCode = async ({ appName, stage, bucket }) => {
 
     for (const l of getAllPaths()) {
         const lambdaName = getFunctionName(l.name)
+
         await foundation.default.lambda.updateLambdaCode({
             name: lambdaName,
             filePath: l.path,
@@ -343,10 +366,19 @@ const invokeLambda = async (name, region, payload = {}) => {
         //ClientContext: 'RequestResponse',
         InvocationType: 'RequestResponse',
         //LogType: None | Tail,
+        LogType: 'Tail',
         Payload: JSON.stringify(payload)
     }
     const res = await lambda.invoke(params).promise()
-    const testResult = JSON.parse(res.Payload)
+
+    const testResult = JSON.parse(res.Payload).expectations
+    const logs = JSON.parse(res.Payload).logs
+
+    const convert = (x) => Buffer.from(x, 'base64').toString('utf8')
+    Object.keys(logs).forEach((k) => {
+        console.log(k + ' Logs:')
+        console.log(convert(logs[k]))
+    })
 
     console.log(name)
     Object.keys(testResult).forEach((name) => {
@@ -393,6 +425,174 @@ const deploy = async () => {
     })
 }
 
+const zipLayers = async () => {
+    /**
+     * Define
+     */
+    const getLambdaFunctionPaths = (folderName) => {
+        const functionsPath = process.cwd() + '/' + folderName
+        const lambdas = io.fileSystem.getDirectories(functionsPath)
+        return lambdas.map((x) => {
+            return {
+                path: functionsPath + '/' + x,
+                name: x
+            }
+        })
+    }
+
+    const zipLayer = async (x, folderName) => {
+        const projectPath = process.cwd()
+
+        await io.package.packageCode({
+            location: x.path,
+            target: projectPath + '/' + HIDDEN_FOLDER + '/' + folderName,
+            name: x.name
+        })
+    }
+
+    /**
+     * Execute
+     */
+    const layers = getLambdaFunctionPaths('layers')
+
+    for (const layer of layers) {
+        await zipLayer(
+            {
+                path: layer.path,
+                name: layer.name
+            },
+            'layers'
+        )
+    }
+}
+const uploadLayers = async (name, region, bucketName) => {
+    /**
+     * Define
+     */
+    const getAllPaths = () => {
+        const lambaPaths = process.cwd() + '/layers'
+        const lambdas = io.fileSystem.getDirectories(lambaPaths)
+
+        return [
+            ...lambdas.map(
+                (x) => `${process.cwd()}/${HIDDEN_FOLDER}/layers/${x}.zip`
+            )
+        ]
+    }
+    const getFile = async (path) => {
+        return await readFile(path)
+    }
+    const uploadFile = async (key, file) => {
+        await io.s3.uploadToS3(AWS)({
+            file: file,
+            bucket: bucketName,
+            key: key.split(HIDDEN_FOLDER + '/')[1],
+            region: region
+        })
+    }
+
+    /**
+     * Execute
+     */
+
+    const paths = getAllPaths()
+
+    for (const path of paths) {
+        const file = await getFile(path)
+
+        await uploadFile(path, file)
+    }
+}
+
+const deployCfLayerTemplate = async ({ appName, bucket }) => {
+    const getAllPaths = () => {
+        const lambaPaths = process.cwd() + '/layers'
+        const lambdas = io.fileSystem.getDirectories(lambaPaths)
+
+        return [
+            ...lambdas.map((x) => ({
+                path: `layers/${x}.zip`,
+                name: x
+            }))
+        ]
+    }
+
+    let template = {
+        Resources: {},
+        Outputs: {}
+    }
+
+    getAllPaths().forEach((x) => {
+        const res = foundation.default.lambda.cf.makeLambdaLayer({
+            name: x.name,
+            bucket: bucket,
+            bucketKey: x.path
+        })
+
+        template.Resources = {
+            ...template.Resources,
+            ...res.Resources
+        }
+        template.Outputs = {
+            ...template.Outputs,
+            ...{
+                [`Layer${x.name}Arn`]: {
+                    Value: {
+                        Ref: `Layer${x.name}`
+                    }
+                }
+            }
+        }
+    })
+    // console.log(JSON.stringify(template, null, 2))
+    // return
+
+    const x = await foundation.default.cloudformation.deployStack({
+        name: appName + 'Layers',
+        template: JSON.stringify(template)
+    })
+    console.log('L:::: ', x)
+
+    await foundation.default.cloudformation.getDeployStatus({
+        config: {
+            stackName: appName + 'Layers',
+            minRetryInterval: 5000,
+            maxRetryInterval: 10000,
+            backoffRate: 1.1,
+            maxRetries: 200,
+            onCheck: (resources) => {
+                console.log(JSON.stringify(resources, null, 2))
+            }
+        }
+    })
+}
+
+const deployLayers = async () => {
+    makeFocusFolder()
+    let config = getConfig()
+
+    if (!config.bucketName) {
+        const bucketName = await deployBucketTemplate(
+            config.appName,
+            config.region
+        )
+
+        config.bucketName = bucketName
+    }
+
+    console.time('time')
+
+    await zipLayers()
+
+    await uploadLayers(config.appName, config.region, config.bucketName)
+
+    await deployCfLayerTemplate({
+        appName: config.appName,
+        bucket: config.bucketName
+    })
+    console.timeEnd('time')
+}
+
 const test = async () => {
     makeFocusFolder()
     const config = getConfig()
@@ -405,9 +605,10 @@ const test = async () => {
 
     await zipLambdas()
     await uploadLambdas(config.appName, config.region, config.bucketName)
+
     await updateLambdaCode({
         appName: config.appName,
-        bucket: config.appName,
+        bucket: config.bucketName,
         stage: config.stage
     })
 
@@ -424,5 +625,6 @@ const test = async () => {
 
 module.exports = {
     deploy,
+    deployLayers,
     test
 }

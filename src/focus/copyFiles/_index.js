@@ -12,6 +12,7 @@ module.exports.handler = async () => {
         })
         const params = {
             FunctionName: name,
+            LogType: 'Tail',
             InvocationType: 'RequestResponse',
             Payload: JSON.stringify(payload)
         }
@@ -19,6 +20,7 @@ module.exports.handler = async () => {
     }
 
     let expectations = {}
+    let logs = {}
     const expect = (testName) => (v) => {
         return {
             toBe: (ex) => {
@@ -42,9 +44,11 @@ module.exports.handler = async () => {
     }
 
     const contextualInvoke = async (name, payload) => {
-        const app = 'gary-demo-focus'
+        const app = 'risefoundationtests'
         const stage = 'dev'
         const xx = await invokeLambda(`${app}-${name}-${stage}`, payload)
+
+        logs[name] = xx.LogResult
         return JSON.parse(xx.Payload)
     }
 
@@ -61,7 +65,10 @@ module.exports.handler = async () => {
     try {
         main(test)
         await Promise.all(listOfPromises)
-        return expectations
+        return {
+            expectations,
+            logs
+        }
     } catch (e) {
         return 'Failed: ' + e.message
     }
