@@ -1,0 +1,53 @@
+{
+    "name": "sls-focus-cli",
+    "version": "0.0.50",
+    "author": "Gary Jennings @dodgeblaster",
+    "bin": {
+        "focus": "./bin/run"
+    },
+    "bugs": "https://github.com/dodgeblaster/focus-cli/issues",
+    "devDependencies": {
+        "@oclif/dev-cli": "^1.26.0",
+        "globby": "^10.0.2"
+    },
+    "engines": {
+        "node": ">=8.0.0"
+    },
+    "files": [
+        "/bin",
+        "/npm-shrinkwrap.json",
+        "/oclif.manifest.json",
+        "/src"
+    ],
+    "homepage": "https://github.com/dodgeblaster/focus-cli",
+    "keywords": [
+        "oclif"
+    ],
+    "license": "MIT",
+    "main": "src/index.js",
+    "oclif": {
+        "commands": "./src/commands",
+        "bin": "focus",
+        "plugins": [
+            "@oclif/plugin-help"
+        ]
+    },
+    "repository": "dodgeblaster/focus-cli",
+    "scripts": {
+        "postpack": "rm -f oclif.manifest.json",
+        "prepack": "oclif-dev manifest && oclif-dev readme",
+        "test": "echo NO TESTS",
+        "version": "oclif-dev readme && git add README.md"
+    },
+    "dependencies": {
+        "@oclif/command": "^1.8.0",
+        "@oclif/config": "^1.17.0",
+        "@oclif/plugin-help": "^3.2.3",
+        "aws-sdk": "^2.1037.0",
+        "chalk": "^4.1.2",
+        "fs-extra": "^10.0.0",
+        "rise-cli-foundation": "^0.0.3",
+        "rise-foundation": "^0.0.31",
+        "riseapp-utils": "^0.0.2"
+    }
+}
