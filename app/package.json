@@ -14,7 +14,7 @@
         "aws-sdk": "^2.1065.0",
         "axios": "^0.25.0",
         "rise-cli-foundation": "^0.0.3",
-        "rise-foundation": "^0.0.38"
+        "rise-foundation": "^0.0.41"
     },
     "devDependencies": {
         "@oclif/test": "^2",
