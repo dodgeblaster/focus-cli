@@ -11,7 +11,19 @@ async function parseConfig(
 }> {
     let state = originalState
     let configObj: Record<string, CodeConfig> = {}
-    const dir = cli.fileSystem.getDirectories(dirPath)
+    let dir = []
+    try {
+        dir = cli.fileSystem.getDirectories(dirPath)
+    } catch (e: any) {
+        if (e.message.includes('no such file or directory')) {
+            return {
+                state,
+                config: configObj
+            }
+        }
+
+        throw new Error(e)
+    }
     for (const x of dir) {
         const path = `${dirPath}/${x}/config.js`
         let config = require(path)

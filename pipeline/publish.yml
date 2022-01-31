@@ -10,4 +10,4 @@ phases:
             - npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}"
             - npm i
             - npm run build
-            - npm run publish
+            - npm publish
