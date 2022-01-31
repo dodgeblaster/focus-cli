@@ -3,7 +3,8 @@ module.exports = {
     preset: 'ts-jest',
     testEnvironment: 'node',
     collectCoverageFrom: ['src/focus/**/*.ts'],
-    testPathIgnorePatterns: ['<rootDir>/lib/'],
+    testPathIgnorePatterns: ['<rootDir>/lib/', '<rootDir>/dist/'],
+
     globals: {
         'ts-jest': {
             isolatedModules: true

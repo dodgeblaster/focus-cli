@@ -2,6 +2,16 @@ import { makeFocusFolder } from './makeFocusFolder'
 import cli from 'rise-cli-foundation'
 
 test('can make focus folders', async () => {
+    const current = await cli.fileSystem.getDirectories(
+        process.cwd() + '/src/focus/getConfig/test/'
+    )
+
+    if (!current.includes('makeFolderTest')) {
+        await cli.fileSystem.makeDir(
+            process.cwd() + '/src/focus/getConfig/test/makeFolderTest'
+        )
+    }
+
     const path = process.cwd() + '/src/focus/getConfig/test/makeFolderTest'
     await makeFocusFolder(path)
 

@@ -1,6 +1,18 @@
 import { getAppConfig } from './getAppConfig'
+import cli from 'rise-cli-foundation'
 
 test('getAppConfig will throw error if no focus.js file is present', async () => {
+    const current = await cli.fileSystem.getDirectories(
+        process.cwd() + '/src/focus/getConfig/test/getAppConfig'
+    )
+
+    if (!current.includes('withoutConfigFile')) {
+        await cli.fileSystem.makeDir(
+            process.cwd() +
+                '/src/focus/getConfig/test/getAppConfig/withoutConfigFile'
+        )
+    }
+
     try {
         await getAppConfig(
             process.cwd() +

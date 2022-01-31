@@ -7,4 +7,5 @@ phases:
     build:
         commands:
             - cd ./app
+            - npm i
             - npm run ci:test
