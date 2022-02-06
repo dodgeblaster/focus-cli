@@ -1,0 +1,183 @@
+# StepFunctions
+
+To define a StepFunction:
+
+-   create a `stepfunctions` folder
+-   create another folder with the name of your stepfunction
+-   create an `index.json` file and a `config.js` file.
+
+```
+/stepfunctions
+    /myBlueStepFunction
+        index.json
+        config.js
+```
+
+## index.json
+
+Inside index.json, you can write your StepFunction definition like so:
+
+```js
+{
+    "StartAt": "Which type of order event?",
+    "States": {
+        "Which type of order event?": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.detail.type",
+                    "StringEquals": "order-added",
+                    "Next": "AddOrderAddedTimeStamp"
+                },
+                {
+                    "Variable": "$.detail.type",
+                    "StringEquals": "order-started",
+                    "Next": "AddOrderStartedTimeStamp"
+                },
+                {
+                    "Variable": "$.detail.type",
+                    "StringEquals": "order-completed",
+                    "Next": "AddOrderCompletedTimeStamp"
+                }
+            ]
+        },
+        "AddOrderAddedTimeStamp": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:putItem",
+            "Parameters": {
+                "TableName": "MyTable{@stage}",
+                "Item": {
+                    "PK": {
+                        "S.$": "States.Format('{}_{}', $.detail.storeId, $.detail.id)"
+                    },
+                    "SK": {
+                        "S": "added"
+                    },
+                    "time": {
+                        "S.$": "$.detail.time"
+                    }
+                }
+            },
+            "End": true
+        },
+        "AddOrderStartedTimeStamp": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:putItem",
+            "Parameters": {
+                "TableName": "MyTable{@stage}",
+                "Item": {
+                    "PK": {
+                        "S.$": "States.Format('{}_{}', $.detail.storeId, $.detail.id)"
+                    },
+                    "SK": {
+                        "S": "started"
+                    },
+                    "time": {
+                        "S.$": "$.detail.time"
+                    }
+                }
+            },
+            "End": true
+        },
+        "AddOrderCompletedTimeStamp": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::dynamodb:putItem",
+            "Parameters": {
+                "TableName": "MyTable{@stage}",
+                "Item": {
+                    "PK": {
+                        "S.$": "States.Format('{}_{}', $.detail.storeId, $.detail.id)"
+                    },
+                    "SK": {
+                        "S": "completed"
+                    },
+                    "time": {
+                        "S.$": "$.detail.time"
+                    }
+                }
+            },
+            "ResultPath": null,
+            "Next": "List all order status updates"
+        },
+        "List all order status updates": {
+            "Type": "Task",
+            "Parameters": {
+                "TableName": "MyTable{@stage}",
+                "KeyConditionExpression": "PK = :PK AND begins_with(SK, :SK)",
+                "ExpressionAttributeValues": {
+                    ":PK": {
+                        "S.$": "States.Format('{}_{}', $.detail.storeId, $.detail.id)"
+                    },
+                    ":SK": {
+                        "S": "added"
+                    }
+                }
+            },
+            "Resource": "arn:aws:states:::aws-sdk:dynamodb:query",
+            "Next": "DetermineCustomerWaitTime"
+        },
+        "DetermineCustomerWaitTime": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:{@region}:{@accountId}:function:nameofmyfunction-{@stage}:$LATEST"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException"
+                    ],
+                    "IntervalSeconds": 2,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 2
+                }
+            ],
+            "End": true
+        }
+    }
+}
+
+```
+
+Notice in our example that we are using keywords such as `{@region}` and `{@accoundId}`. This is unique to rise-focus. In other scenarios you would have to include a Substitution object in your CloudFormation, but rise-focus allows you to define dynamic values right in your StepFunction definition.
+
+## config.js
+
+Inside config.js, we configure the StepFunction. The is an example:
+
+```js
+module.exports = {
+    permissions: [
+        {
+            Effect: 'Allow',
+            Action: 'dynamodb:Query',
+            Resource: 'arn:aws:dynamodb:us-east-1:123412341234:table/myTable'
+        }
+    ],
+    trigger: 'anotherapp_paymentStarted'
+}
+```
+
+-   Permissions allows you to define IAM policies, which determine which AWS resources your Lambda function can perform actions on.
+-   Trigger allows you to setup an AWS EventBridge event which this function will respond to
+
+## Setting dynamic values in your config
+
+The previous config example uses hard coded values. In real projects we will likely want to define different values per stage and region. Below is an example of using `keywords` to create dynamic values:
+
+```js
+module.exports = {
+    permissions: [
+        {
+            Effect: 'Allow',
+            Action: 'dynamodb:Query',
+            Resource: '{@output.resourceStack.DB}'
+        }
+    ],
+    trigger: 'otherApp{@stage}_paymentStarted'
+}
+```

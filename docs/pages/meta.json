@@ -1,3 +1,6 @@
 {
-    "index": "Introduction"
+    "index": "Introduction",
+    "functions": "Functions",
+    "stepfunctions": "StepFunctions",
+    "keywords": "Keywords"
 }
